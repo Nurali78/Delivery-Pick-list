@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Delivery Pick Note Generator</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+  body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background: #f9fafb;
+    color: #1f2937;
+  }
+  header {
+    background: #3b82f6;
+    color: white;
+    padding: 1.25rem;
+    text-align: center;
+    font-weight: 600;
+    font-size: 1.5rem;
+    box-shadow: 0 2px 6px rgb(59 130 246 / 0.5);
+  }
+  main {
+    max-width: 1100px;
+    margin: 2rem auto 4rem;
+    padding: 0 1rem;
+  }
+  h2 {
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    color: #111827;
+  }
+  label {
+    display: block;
+    margin-bottom: 0.15rem;
+    font-weight: 600;
+    color: #374151;
+  }
+  input[type=text],
+  input[type=date],
+  input[type=number],
+  textarea,
+  select {
+    width: 100%;
+    padding: 0.5rem;
+    border-radius: 6px;
+    border: 1px solid #d1d5db;
+    font-size: 1rem;
+    margin-bottom: 1rem;
+    box-sizing: border-box;
+    transition: border-color 0.2s ease;
+  }
+  input[type=text]:focus,
+  input[type=date]:focus,
+  input[type=number]:focus,
+  textarea:focus,
+  select:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 5px rgb(59 130 246 / 0.5);
+  }
+  textarea {
+    resize: vertical;
+  }
+  .items-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+  }
+  .items-table th, .items-table td {
+    border: 1px solid #e5e7eb;
+    text-align: left;
+    padding: 0.3rem 0.5rem;
+    vertical-align: middle;
+  }
+  .items-table th {
+    background: #f3f4f6;
+    font-weight: 600;
+  }
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 6px;
+    background: #3b82f6;
+    color: white;
+    font-weight: 600;
+    padding: 0.6rem 1.2rem;
+    font-size: 1rem;
+    transition: background-color 0.2s ease;
+    margin-right: 0.5rem;
+  }
+  button:hover {
+    background: #2563eb;
+  }
+  button:disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+  }
+  .flex {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .flex > * {
+    flex: 1 1 200px;
+  }
+  .remove-item-button {
+    background: #ef4444;
+    padding: 0.3rem 0.7rem;
+    font-weight: 700;
+    border-radius: 4px;
+  }
+  .remove-item-button:hover {
+    background: #dc2626;
+  }
+  /* Delivery note styling */
+  #delivery-note {
+    margin-top: 3rem;
+    padding: 2rem;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 5px 15px rgb(0 0 0 / 0.1);
+    font-size: 0.95rem;
+    line-height: 1.4;
+    color: #111827;
+    overflow-x: auto;
+  }
+  #delivery-note h2 {
+    text-align: center;
+    margin-bottom: 1rem;
+    color: #1e3a8a;
+  }
+  #delivery-note .section {
+    margin-bottom: 1.5rem;
+  }
+  #delivery-note table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+  #delivery-note th, #delivery-note td {
+    border: 1px solid #d1d5db;
+    padding: 0.4rem 0.6rem;
+    text-align: left;
+  }
+  #delivery-note th {
+    background: #e0e7ff;
+    font-weight: 600;
+  }
+  #delivery-note footer {
+    margin-top: 2rem;
+    font-size: 0.85rem;
+    color: #6b7280;
+    text-align: center;
+  }
+  /* Print styles */
+  @media print {
+    body * {
+      visibility: hidden;
+    }
+    #delivery-note, #delivery-note * {
+      visibility: visible;
+    }
+    #delivery-note {
+      position: absolute;
+      top: 0;
+      left: 0;
+      padding: 0;
+      box-shadow: none;
+      width: 100%;
+      font-size: 12pt;
+    }
+  }
+</style>
+<!-- CDN for PapaParse (CSV parsing) -->
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<!-- CDN for SheetJS -->
+<script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+<!-- CDN for jsPDF -->
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+</head>
+<body>
+<header>Delivery Pick Note Generator</header>
+<main>
+  <section>
+    <h2>Delivery / Pickup Details</h2>
+    <form id="delivery-form" onsubmit="return false;">
+      <div class="flex">
+        <div>
+          <label for="pickerName">Picker Name</label>
+          <input type="text" id="pickerName" placeholder="Name of picker" />
+        </div>
+        <div>
+          <label for="pickerId">Picker ID</label>
+          <input type="text" id="pickerId" placeholder="Picker identification" />
+        </div>
+        <div>
+          <label for="contactNumber">Contact Number (Optional)</label>
+          <input type="text" id="contactNumber" placeholder="+1 555 1234 567" />
+        </div>
+      </div>
+      <div class="flex">
+        <div>
+          <label for="orderNumber">Order Number</label>
+          <input type="text" id="orderNumber" placeholder="ORD-001234" />
+        </div>
+        <div>
+          <label for="deliveryDate">Delivery/Pickup Date</label>
+          <input type="date" id="deliveryDate" required />
+        </div>
+      </div>
+    </form>
+  </section>
+  <section>
+    <h2>Filter Criteria</h2>
+    <div class="flex" style="align-items:center;">
+      <div>
+        <label for="filterRoute">Select Route</label>
+        <select id="filterRoute">
+          <option value="">-- All Routes --</option>
+          <!-- Dynamic options will be populated -->
+        </select>
+      </div>
+      <div>
+        <label for="filterStoreCapacity">Store Capacity Limit (cartons, manual entry)</label>
+        <input type="number" id="filterStoreCapacity" min="0" placeholder="No limit" />
+        <small style="font-size: 0.8rem; color:#6b7280;">Automatically selects aged stocks first up to capacity.</small>
+      </div>
+      <div>
+        <label for="filterMinAging">Min Aging Days</label>
+        <input type="number" id="filterMinAging" min="0" placeholder="No minimum" />
+      </div>
+      <div>
+        <label for="filterCommentContains">Comment Contains</label>
+        <input type="text" id="filterCommentContains" placeholder="Keyword in comments" />
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Upload Items Data (CSV or Excel)</h2>
+    <input type="file" id="fileInput" accept=".csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" />
+    <p style="font-size: 0.85rem; color:#6b7280;">Upload CSV or XLSX files with columns matching:<br>
+      FACILITY, BRAND, STORE, STORE_NAME, ROUTE, CARTON, CTN, TOTAL_QTY, LOCATION_ID, COMM_INVC_NBR, PACK_DATE, PACKING_LIST_NBR, IN_STORE_DATE, ASN_NBR, COMMENTS, AGING_DAYS
+    </p>
+  </section>
+
+  <section>
+    <h2>Items to Deliver / Pick</h2>
+    <table class="items-table" id="itemsTable">
+      <thead>
+        <tr>
+          <th>FACILITY</th>
+          <th>BRAND</th>
+          <th>STORE</th>
+          <th>STORE_NAME</th>
+          <th>ROUTE</th>
+          <th>CARTON</th>
+          <th>CTN</th>
+          <th>TOTAL_QTY</th>
+          <th>LOCATION_ID</th>
+          <th>COMM_INVC_NBR</th>
+          <th>PACK_DATE</th>
+          <th>PACKING_LIST_NBR</th>
+          <th>IN_STORE_DATE</th>
+          <th>ASN_NBR</th>
+          <th>COMMENTS</th>
+          <th>AGING_DAYS</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="itemsTbody">
+        <!-- Rows inserted by JS -->
+      </tbody>
+    </table>
+    <button id="addItemBtn" type="button">+ Add Item</button>
+  </section>
+  <section style="margin-top: 2rem;">
+    <button id="generateNoteBtn" type="button">Generate Delivery Pick Note</button>
+    <button id="printNoteBtn" type="button" style="display:none;">Print Note</button>
+    <button id="exportPdfBtn" type="button" style="display:none;">Export as PDF</button>
+  </section>
+
+  <section id="delivery-note" style="display:none;">
+    <!-- Generated note will appear here -->
+  </section>
+</main>
+
+<script>
+  const itemsTbody = document.getElementById('itemsTbody');
+  const addItemBtn = document.getElementById('addItemBtn');
+  const generateNoteBtn = document.getElementById('generateNoteBtn');
+  const printNoteBtn = document.getElementById('printNoteBtn');
+  const exportPdfBtn = document.getElementById('exportPdfBtn');
+  const deliveryNoteSection = document.getElementById('delivery-note');
+  const filterRouteSelect = document.getElementById('filterRoute');
+  const filterStoreCapacityInput = document.getElementById('filterStoreCapacity');
+  const filterMinAgingInput = document.getElementById('filterMinAging');
+  const filterCommentInput = document.getElementById('filterCommentContains');
+  const fileInput = document.getElementById('fileInput');
+
+  const pickerNameInput = document.getElementById('pickerName');
+  const pickerIdInput = document.getElementById('pickerId');
+  const contactNumberInput = document.getElementById('contactNumber');
+  const orderNumberInput = document.getElementById('orderNumber');
+  const deliveryDateInput = document.getElementById('deliveryDate');
+
+  const itemFields = [
+    'FACILITY',
+    'BRAND',
+    'STORE',
+    'STORE_NAME',
+    'ROUTE',
+    'CARTON',
+    'CTN',
+    'TOTAL_QTY',
+    'LOCATION_ID',
+    'COMM_INVC_NBR',
+    'PACK_DATE',
+    'PACKING_LIST_NBR',
+    'IN_STORE_DATE',
+    'ASN_NBR',
+    'COMMENTS',
+    'AGING_DAYS'
+  ];
+
+  function createInput(tdElement, type='text', placeholder='', required=false, min=null) {
+    const input = document.createElement('input');
+    input.type = type;
+    input.placeholder = placeholder;
+    if (required) input.required = true;
+    if (min !== null) input.min = min;
+    input.style.width = '100%';
+    tdElement.appendChild(input);
+    return input;
+  }
+
+  function createItemRow(item = {}) {
+    const tr = document.createElement('tr');
+    itemFields.forEach(field => {
+      const td = document.createElement('td');
+      let type = 'text';
+      let min = null;
+      if (['CTN','TOTAL_QTY','AGING_DAYS','CARTON'].includes(field)) {
+        type = 'number';
+        min = 0;
+      }
+      if (field === 'PACK_DATE' || field === 'IN_STORE_DATE') {
+        type = 'date';
+      }
+      const input = createInput(td, type, '', false, min);
+      if (item[field] !== undefined && item[field] !== null) {
+        if (type === 'date') {
+          let val = item[field];
+          if (val) {
+            const dt = new Date(val);
+            if (!isNaN(dt)) {
+              const y = dt.getFullYear();
+              let m = dt.getMonth() + 1; if (m < 10) m = '0' + m;
+              let d = dt.getDate(); if (d < 10) d = '0' + d;
+              val = `${y}-${m}-${d}`;
+            }
+          }
+          input.value = val || '';
+        } else {
+          input.value = item[field];
+        }
+      }
+      tr.appendChild(td);
+    });
+    const actionTd = document.createElement('td');
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.textContent = '✕';
+    removeBtn.title = 'Remove item';
+    removeBtn.className = 'remove-item-button';
+    removeBtn.onclick = () => {
+      tr.remove();
+      populateRouteFilterOptions();
+    }
+    actionTd.appendChild(removeBtn);
+    tr.appendChild(actionTd);
+    return tr;
+  }
+
+  function updateAddButtonState() {
+    addItemBtn.disabled = itemsTbody.children.length >= 100;
+  }
+
+  addItemBtn.addEventListener('click', () => {
+    const newRow = createItemRow();
+    itemsTbody.appendChild(newRow);
+    updateAddButtonState();
+    populateRouteFilterOptions();
+  });
+
+  function validateForm() {
+    const form = document.getElementById('delivery-form');
+    if (!form.reportValidity()) return false;
+    if (itemsTbody.children.length === 0) {
+      alert('Please add at least one item to deliver or pick.');
+      return false;
+    }
+    for (const row of itemsTbody.children) {
+      const inputs = row.querySelectorAll('input');
+      for (const input of inputs) {
+        if (input.required && !input.value.trim()) {
+          alert('Please fill out all required item fields.');
+          return false;
+        }
+        if (input.type === 'number') {
+          if (input.value === '' || Number(input.value) < 0) {
+            alert('Number fields must be zero or greater.');
+            return false;
+          }
+        }
+        if (input.type === 'date' && input.value) {
+          const d = new Date(input.value);
+          if (isNaN(d.getTime())) {
+            alert('Please enter a valid date.');
+            return false;
+          }
+        }
+      }
+    }
+    return true;
+  }
+
+  function populateRouteFilterOptions() {
+    const routesSet = new Set();
+    for (const row of itemsTbody.children) {
+      const routeInput = row.children[itemFields.indexOf('ROUTE')].querySelector('input');
+      if (routeInput && routeInput.value.trim() !== '') {
+        routesSet.add(routeInput.value.trim());
+      }
+    }
+    while (filterRouteSelect.options.length > 1) {
+      filterRouteSelect.remove(1);
+    }
+    const routes = Array.from(routesSet).sort();
+    routes.forEach(route => {
+      const opt = document.createElement('option');
+      opt.value = route;
+      opt.textContent = route;
+      filterRouteSelect.appendChild(opt);
+    });
+  }
+
+  function clearItems() {
+    while (itemsTbody.firstChild) {
+      itemsTbody.removeChild(itemsTbody.firstChild);
+    }
+  }
+
+  function addItemsFromArray(arr) {
+    arr.forEach(item => {
+      const row = createItemRow(item);
+      itemsTbody.appendChild(row);
+    });
+    updateAddButtonState();
+    populateRouteFilterOptions();
+  }
+
+  function parseCSVString(csvString) {
+    return new Promise((resolve, reject) => {
+      Papa.parse(csvString, {
+        header: true,
+        skipEmptyLines: true,
+        complete: results => {
+          if (results.errors.length) {
+            reject(results.errors);
+          } else {
+            resolve(results.data);
+          }
+        }
+      });
+    });
+  }
+
+  async function handleFileUpload(file) {
+    clearItems();
+    if (!file) return;
+    const fileName = file.name.toLowerCase();
+    const reader = new FileReader();
+    if (fileName.endsWith('.csv')) {
+      reader.onload = async (e) => {
+        try {
+          const data = await parseCSVString(e.target.result);
+          const cleanedData = cleanParsedData(data);
+          addItemsFromArray(cleanedData);
+          alert(`Successfully loaded ${cleanedData.length} items from CSV.`);
+        } catch (err) {
+          alert('Error parsing CSV file: ' + (err.message || JSON.stringify(err)));
+        }
+      };
+      reader.readAsText(file);
+    } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+      reader.onload = (e) => {
+        try {
+          const data = e.target.result;
+          const workbook = XLSX.read(data, {type: 'array'});
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, {defval: ''});
+          const cleanedData = cleanParsedData(jsonData);
+          addItemsFromArray(cleanedData);
+          alert(`Successfully loaded ${cleanedData.length} items from Excel.`);
+        } catch (err) {
+          alert('Error parsing Excel file: ' + (err.message || JSON.stringify(err)));
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      alert('Unsupported file type. Please upload CSV or Excel (.xlsx/.xls) files.');
+    }
+  }
+
+  function cleanParsedData(dataArray) {
+    return dataArray.map(row => {
+      const item = {};
+      const rowKeysUpper = {};
+      Object.keys(row).forEach(k => {
+        rowKeysUpper[k.trim().toUpperCase()] = row[k];
+      });
+      itemFields.forEach(field => {
+        if (rowKeysUpper.hasOwnProperty(field)) {
+          item[field] = rowKeysUpper[field];
+        } else {
+          item[field] = '';
+        }
+      });
+      return item;
+    });
+  }
+
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files.length > 0) {
+      handleFileUpload(e.target.files[0]);
+      e.target.value = '';
+    }
+  });
+
+  function generateNote() {
+    if (!validateForm()) return;
+
+    const pickerName = pickerNameInput.value.trim();
+    const pickerId = pickerIdInput.value.trim();
+    const contactNumber = contactNumberInput.value.trim();
+    const orderNumber = orderNumberInput.value.trim();
+    const deliveryDate = deliveryDateInput.value;
+
+    const filterRoute = filterRouteSelect.value.trim();
+    const filterStoreCapacityVal = filterStoreCapacityInput.value.trim();
+    const filterStoreCapacity = filterStoreCapacityVal !== '' ? Number(filterStoreCapacityVal) : null;
+    const filterMinAgingVal = filterMinAgingInput.value.trim();
+    const filterMinAging = filterMinAgingVal !== '' ? Number(filterMinAgingVal) : null;
+    const filterCommentContains = filterCommentInput.value.toLowerCase().trim();
+
+    const dateOptions = { year: 'numeric', month: 'long', day: 'numeric' };
+    const formattedDeliveryDate = deliveryDate ? new Date(deliveryDate).toLocaleDateString(undefined, dateOptions) : '';
+
+    // Collect all items
+    let items = [];
+    for (const row of itemsTbody.children) {
+      const item = {};
+      itemFields.forEach((field, idx) => {
+        const input = row.children[idx].querySelector('input');
+        item[field] = input ? input.value.trim() : '';
+      });
+      item.TOTAL_QTY = item.TOTAL_QTY === '' ? 0 : Number(item.TOTAL_QTY);
+      item.AGING_DAYS = item.AGING_DAYS === '' ? 0 : Number(item.AGING_DAYS);
+      item.CARTON = item.CARTON === '' ? 0 : Number(item.CARTON);
+      items.push(item);
+    }
+
+    if (filterRoute) {
+      items = items.filter(i => i.ROUTE === filterRoute);
+    }
+    if (filterMinAging !== null) {
+      items = items.filter(i => i.AGING_DAYS >= filterMinAging);
+    }
+    if (filterCommentContains) {
+      items = items.filter(i => i.COMMENTS.toLowerCase().includes(filterCommentContains));
+    }
+
+    if (items.length === 0) {
+      alert('No items match the selected filter criteria.');
+      deliveryNoteSection.style.display = 'none';
+      printNoteBtn.style.display = 'none';
+      exportPdfBtn.style.display = 'none';
+      return;
+    }
+
+    let selectedItems = [];
+    if (filterStoreCapacity !== null && filterStoreCapacity > 0) {
+      // Sort descending by AGING_DAYS to select aged first
+      const sortedItems = items.slice().sort((a,b) => b.AGING_DAYS - a.AGING_DAYS);
+      let cartonSum = 0;
+      for (const item of sortedItems) {
+        if (cartonSum >= filterStoreCapacity) break;
+        const availableCartons = item.CARTON || 0;
+        if (availableCartons <= 0) continue;
+        const cartonsToSelect = Math.min(availableCartons, filterStoreCapacity - cartonSum);
+        if (cartonsToSelect <= 0) continue;
+        const selectedItem = {...item};
+        selectedItem.CARTON = cartonsToSelect;
+        if (availableCartons > 0) {
+          selectedItem.TOTAL_QTY = Math.round((item.TOTAL_QTY * (cartonsToSelect / availableCartons)) * 100) / 100;
+        }
+        selectedItems.push(selectedItem);
+        cartonSum += cartonsToSelect;
+      }
+    } else {
+      selectedItems = items;
+    }
+
+    if (selectedItems.length === 0) {
+      alert('No items selected based on the store capacity and aging priority.');
+      deliveryNoteSection.style.display = 'none';
+      printNoteBtn.style.display = 'none';
+      exportPdfBtn.style.display = 'none';
+      return;
+    }
+
+    let itemsHtml = '';
+    selectedItems.forEach((item, index) => {
+      itemsHtml += '<tr>';
+      itemsHtml += `<td>${index + 1}</td>`;
+      itemFields.forEach(field => {
+        let val = item[field] === undefined || item[field] === null ? '' : item[field];
+        if (field === 'PACK_DATE' || field === 'IN_STORE_DATE') {
+          if (val) {
+            const dtVal = new Date(val);
+            if (!isNaN(dtVal)) val = dtVal.toLocaleDateString();
+          }
+        }
+        if (field === 'TOTAL_QTY') {
+          val = Number(val);
+          val = isNaN(val) ? '' : val.toFixed(2);
+        }
+        if (field === 'CARTON' || field === 'CTN' || field === 'AGING_DAYS') {
+          val = Number(val);
+          val = isNaN(val) ? '' : val;
+        }
+        itemsHtml += `<td>${val}</td>`;
+      });
+      itemsHtml += '</tr>';
+    });
+
+    const headerCols = ['#'].concat(itemFields);
+    const pickerNameLine = pickerName ? `<div><strong>Picker Name:</strong> ${pickerName}</div>` : '';
+    const pickerIdLine = pickerId ? `<div><strong>Picker ID:</strong> ${pickerId}</div>` : '';
+    const contactNumberLine = contactNumber ? `<div><strong>Contact Number:</strong> ${contactNumber}</div>` : '';
+    const orderLine = orderNumber ? `<div><strong>Order Number:</strong> ${orderNumber}</div>` : '';
+    const capacityNote = (filterStoreCapacity !== null && filterStoreCapacity > 0) ? 
+      `<div style="margin-top:0.5rem; font-style: italic; color: #374151;">
+      Items selected automatically by aging priority up to store capacity limit: <strong>${filterStoreCapacity}</strong> cartons.</div>` : '';
+
+    deliveryNoteSection.innerHTML = `
+      <h2>Delivery Pick Note</h2>
+      <div class="section">
+        <strong>Delivery/Pickup Date:</strong> ${formattedDeliveryDate}
+      </div>
+      <div class="section">
+        ${pickerNameLine}
+        ${pickerIdLine}
+        ${contactNumberLine}
+        ${orderLine}
+        ${capacityNote}
+      </div>
+      <div class="section" style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              ${headerCols.map(col => `<th>${col}</th>`).join('')}
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsHtml}
+          </tbody>
+        </table>
+      </div>
+      <footer>
+        Note generated by Delivery Pick Note Generator
+      </footer>
+    `;
+    deliveryNoteSection.style.display = 'block';
+    printNoteBtn.style.display = 'inline-block';
+    exportPdfBtn.style.display = 'inline-block';
+    deliveryNoteSection.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  generateNoteBtn.addEventListener('click', generateNote);
+  printNoteBtn.addEventListener('click', () => {
+    window.print();
+  });
+  exportPdfBtn.addEventListener('click', () => {
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('l', 'pt', 'a4');
+    pdf.html(deliveryNoteSection, {
+      callback: (doc) => doc.save('delivery-pick-note.pdf'),
+      margin: [20, 20, 20, 20],
+      autoPaging: 'text',
+      html2canvas: { scale: 0.8 }
+    });
+  });
+
+  window.onload = () => {
+    if (itemsTbody.children.length === 0) {
+      addSampleRow();
+    }
+    populateRouteFilterOptions();
+  };
+
+  function addSampleRow() {
+    const sampleItem = {
+      FACILITY: 'Facility A',
+      BRAND: 'Brand X',
+      STORE: 'Store 1001',
+      STORE_NAME: 'Main Street Store',
+      ROUTE: 'Route 1',
+      CARTON: 10,
+      CTN: 5,
+      TOTAL_QTY: 50,
+      LOCATION_ID: 'LOC001',
+      COMM_INVC_NBR: 'INV12345',
+      PACK_DATE: '2024-06-10',
+      PACKING_LIST_NBR: 'PL123',
+      IN_STORE_DATE: '2024-06-12',
+      ASN_NBR: 'ASN987',
+      COMMENTS: 'Fragile items',
+      AGING_DAYS: 4
+    };
+    const row = createItemRow(sampleItem);
+    itemsTbody.appendChild(row);
+    updateAddButtonState();
+    populateRouteFilterOptions();
+  }
+</script>
+</body>
+</html>
